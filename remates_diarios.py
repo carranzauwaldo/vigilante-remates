@@ -53,15 +53,26 @@ MED_HDR = ["detectado_utc", "revision_anterior_utc", "brecha_max_min", "fecha_pu
 
 
 # ------------------------------------------------------------------ portal
-def pedir_pagina(pagina: int) -> str:
+def pedir_pagina(pagina: int, intentos: int = 3) -> str:
+    """Pide una página del portal. Si el portal se cuelga, corta pronto (20 s) y
+    reintenta en vez de esperar 60 s; solo falla si los `intentos` fallan."""
     params = {
         "p_p_id": INSTANCE, "p_p_lifecycle": "0", "p_p_state": "normal", "p_p_mode": "view",
         NS + "idStructure": ID_REMATES, NS + "action": "filterStructures",
         NS + "idDepto": " ", NS + "verTotales": "true", NS + "cur": str(pagina),
     }
-    r = requests.get(BASE + PATH, params=params, headers=HEADERS, timeout=60)
-    r.raise_for_status()
-    return r.text
+    ultimo = None
+    for i in range(intentos):
+        try:
+            r = requests.get(BASE + PATH, params=params, headers=HEADERS, timeout=(10, 20))
+            r.raise_for_status()
+            return r.text
+        except requests.RequestException as e:
+            ultimo = e
+            print(f"Portal sin respuesta (intento {i + 1}/{intentos}): {type(e).__name__}", flush=True)
+            if i < intentos - 1:
+                time.sleep(3 + 2 * i)
+    raise ultimo
 
 
 def article_id(href: str) -> str:
