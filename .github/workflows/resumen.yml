@@ -1,0 +1,35 @@
+name: Resumen de retrasos
+
+on:
+  workflow_dispatch:
+    inputs:
+      horas:
+        description: "Horas hacia atrás (168 = 7 días)"
+        default: "168"
+
+permissions:
+  contents: read
+
+jobs:
+  resumen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/checkout@v6
+        with:
+          ref: datos
+          path: datos
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Calcular resumen
+        env:
+          HORAS: ${{ inputs.horas }}
+        run: python remates_diarios.py --resumen --horas "$HORAS" --datos datos
