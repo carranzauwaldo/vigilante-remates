@@ -16,7 +16,8 @@ Uso local:
 Variables de entorno (en GitHub van en "Secrets"):
     TELEGRAM_BOT_TOKEN   token del bot (@BotFather)
     TELEGRAM_CHAT_IDS    ids de chat separados por coma (varias personas o un grupo)
-    REMATES_DEPTOS       ej: ANTIOQUIA,CUNDINAMARCA   (opcional, filtra)
+    REMATES_DEPTOS       ej: ANTIOQUIA,CUNDINAMARCA,BOLIVAR>CARTAGENA   (opcional, filtra;
+                         "DEPTO>MUNICIPIO" limita ese departamento a un municipio)
     REMATES_MUNICIPIOS   ej: RIONEGRO,MEDELLÍN        (opcional, filtra)
 Si no defines filtros, recibirás TODOS los remates del país.
 """
@@ -110,8 +111,21 @@ def norm(s: str) -> str:
 
 
 def cumple(a: dict, deptos: list[str], municipios: list[str]) -> bool:
-    if deptos and not any(norm(d) in norm(a["departamento"]) for d in deptos):
-        return False
+    """Cada entrada de `deptos` puede ser un departamento completo ("ANTIOQUIA")
+    o un departamento + municipio ("BOLIVAR>CARTAGENA"). Basta que cumpla una.
+    Si además hay `municipios`, el aviso también debe estar en alguno de ellos."""
+    if deptos:
+        ok = False
+        for entrada in deptos:
+            dep, _, mun = entrada.partition(">")
+            if norm(dep.strip()) not in norm(a["departamento"]):
+                continue
+            if mun.strip() and norm(mun.strip()) not in norm(a["municipio"]):
+                continue
+            ok = True
+            break
+        if not ok:
+            return False
     if municipios and not any(norm(m) in norm(a["municipio"]) for m in municipios):
         return False
     return True
