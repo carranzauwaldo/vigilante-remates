@@ -1,0 +1,60 @@
+name: Vigilar remates
+
+on:
+  schedule:
+    # Cada 10 min en minutos "raros" (GitHub se congestiona en las horas en punto)
+    - cron: "3,13,23,33,43,53 * * * *"
+  workflow_dispatch:   # permite lanzarlo a mano o desde un disparador externo
+
+concurrency:
+  group: vigilar-remates
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Traer datos (rama "datos")
+        run: |
+          REMOTE="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          if git ls-remote --exit-code --heads "$REMOTE" datos >/dev/null 2>&1; then
+            git clone -q --branch datos --single-branch --depth 1 "$REMOTE" datos
+          else
+            mkdir datos
+          fi
+
+      - name: Revisar remates
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
+          REMATES_DEPTOS: ${{ secrets.REMATES_DEPTOS }}
+          REMATES_MUNICIPIOS: ${{ secrets.REMATES_MUNICIPIOS }}
+        run: python remates_diarios.py --datos datos
+
+      - name: Guardar datos
+        run: |
+          cd datos
+          if [ ! -d .git ]; then
+            git init -q -b datos
+            git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -q -m "datos $(date -u +%FT%TZ)"
+            git push -q origin HEAD:datos
+          fi
